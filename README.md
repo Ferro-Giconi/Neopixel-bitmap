@@ -1,8 +1,8 @@
 # Neopixel-bitmap
 A Raspberry Pi Pico program to display images on a Neopixel RGB LED array.
 
-PicoBitmap.py:  
-This is written in Micropython for the Raspberry Pi Pico. It probably works on any RP4020 based microcontroller with the Micropython firmware flashed to it.
+NeopixelBitmap.py:  
+This will display bitmaps on a 10x16 Neopixel with support for chaining multiple Neopixels together if you want something larger. This is written in Micropython for the Raspberry Pi Pico. My assumption is that it will work on any RP4020 based microcontroller board with the Micropython firmware flashed to it.
 
 BitmapToArray.py:  
-This is written in normal Python 3. It is a separate program that should be run on the computer to generate an array of RGB values to paste into the PicoBitmap.py program to store bitmaps as an array. This program is unfinished and broken at the moment.
+This generates the array used to display a bitmap in NeopixelBitmap.py. Written using Python 3.
