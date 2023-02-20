@@ -1,3 +1,5 @@
+# Waveshare 160 Neopixel Board Basic
+# Tony Goodhew 19th April 2022 for thepihut.com
 import array
 import utime
 from machine import Pin
@@ -94,10 +96,37 @@ def pixels_show():
 
 def pixels_set(i, colour):
     ar[i] = (colour[1]<<16) + (colour[0]<<8) + colour[2]
-    
+
 def xy_set(x, y, colour):
+    #check if a pixel is valid and set it if it is
+    if valid_pixel(x,y):
+        xy_set_valid(x, y, colour)
+
+def xy_set_valid(x, y, colour):
     # +1 to x and y allows me to do pixel math in this function starting at 1 when the input x and y start at 0.
     # it's just easier for me to figure out the math that way.
+    
+    x = x + 1
+    y = y + 1
+
+    screen_x = 1
+    screen_y = 1
+    xx = x
+    yy = y
+    while xx > 16:
+        screen_x = screen_x + 1
+        xx = xx - 16 - gap_w
+    while yy > 10:
+        screen_y = screen_y + 1
+        yy = yy - 10 - gap_h
+    screen_number = screen_x + ((screen_y - 1) * screens_w)
+    
+    #calculate which pixel to set on which Neopixel
+    pos = ((screen_number - 1) * 160) + (xx - 1) + (yy - 1) * 16
+    pixels_set(pos, colour)
+
+def valid_pixel(x,y):
+    # check if a pixel is valid
     x = x + 1
     y = y + 1
     valid_pixel = True
@@ -113,23 +142,7 @@ def xy_set(x, y, colour):
         for i in missing_y:
             if y == i:
                 valid_pixel = False
-    # if you have a valid pixel, figure out which Neopixel to use
-    if valid_pixel:
-        screen_x = 1
-        screen_y = 1
-        xx = x
-        yy = y
-        while xx > 16:
-            screen_x = screen_x + 1
-            xx = xx - 16 - gap_w
-        while yy > 10:
-            screen_y = screen_y + 1
-            yy = yy - 10 - gap_h
-        screen_number = screen_x + ((screen_y - 1) * screens_w)
-        
-        #calculate which pixel to set on which Neopixel
-        pos = ((screen_number - 1) * 160) + (xx - 1) + (yy - 1) * 16
-        pixels_set(pos, colour)
+    return valid_pixel
 
 def pixels_fill(colour):
     _thread.start_new_thread(pixels_fill_thread2,((colour),))
@@ -164,13 +177,17 @@ def rect_threads(x,y,w,h,r,g,b,threadNum):
         threadLocked = True
         cc = (r,g,b)
         for i in range(x,x+w):
-            xy_set(i,y,cc)       # Top
-            xy_set(i,y+h-1,cc)   # Bottom
+            if valid_pixel(i,y):
+                xy_set_valid(i,y,cc)       # Top
+            if valid_pixel(i,y+h-1):
+                xy_set_valid(i,y+h-1,cc)   # Bottom
     else:
         cc = (r,g,b)
         for i in range(y+1,y+h):
-            xy_set(x,i,cc)       # Left
-            xy_set(x+w-1,i,cc)   # Right
+            if valid_pixel(x,i):
+                xy_set_valid(x,i,cc)       # Left
+            if valid_pixel(x+w-1,i):
+                xy_set_valid(x+w-1,i,cc)   # Right
     if threadNum:
         threadLocked = False
 
@@ -178,13 +195,15 @@ def vert(x,y,l,r,g,b):
     # Vertical line at (x,y) of length l coloured (r,g,b)
     cc = (r,g,b)
     for i in range(l):
-        xy_set(x,i,cc)
+        if valid_pixel(x,i):
+            xy_set_valid(x,i,cc)
 
 def horiz(x,y,l,r,g,b):
     # Horizontal line from (x,y) of length l coloured (r,g,b)
     cc = (r,g,b)
     for i in range(l):
-        xy_set(i+x,y,cc)
+        if valid_pixel(i+x,y):
+            xy_set_valid(i+x,y,cc)
 
 def bitmap_set_fast(x,y,w,h,r,g,b):
     # bitmap_set(x_coordinate, y_coordinate, bmp_width, bmp_height, bmp_red, bmp_green, bmp_blue)
@@ -193,11 +212,12 @@ def bitmap_set_fast(x,y,w,h,r,g,b):
     PxNum = 0
     for i in range(h):
         for j in range(w):
-            rr = r[PxNum]
-            gg = g[PxNum]
-            bb = b[PxNum]
-            # use the heavily modified xy_set to set each pixel
-            xy_set(j+x,i+y,(rr,gg,bb))
+            if valid_pixel(j+x,i+y):
+                rr = r[PxNum]
+                gg = g[PxNum]
+                bb = b[PxNum]
+                # use the heavily modified xy_set to set each pixel
+                xy_set_valid(j+x,i+y,(rr,gg,bb))
             PxNum = PxNum + 1
 
 def bitmap_set24(x,y,ia,ga=1,br=1,tr=False):
@@ -232,26 +252,27 @@ def bitmap_set24_threads(x,y,ia,ga,br,tr,threadNum):
         range2 = math.ceil(h/2)
     for i in range(range1,range2,1):
         for j in range(w):
+            if valid_pixel(j+x,i+y):
             # if transparency is disabled, or if it is enabled and the r,g,b isn't 0,0,0, draw the pixel.
-            if tr and (r[PxNum]+g[PxNum]+b[PxNum] > 0) or (not tr):
-                # compress the data range from 0-255 to 0-246 to compensate for the 0-9 pixels all being black
-                rr = r[PxNum]*246/255
-                gg = g[PxNum]*246/255
-                bb = b[PxNum]*246/255
-                # adjust the brightness
-                rr = rr*br
-                gg = gg*br
-                bb = bb*br
-                # This is a crude gama adjustment formula which can help make bitmaps look more normal instead of washed out
-                rr = math.pow(rr,ga) * 255 / math.pow(255,ga)
-                gg = math.pow(gg,ga) * 255 / math.pow(255,ga)
-                bb = math.pow(bb,ga) * 255 / math.pow(255,ga)
-                #undo the compression
-                rr = math.ceil(rr+9)
-                gg = math.ceil(gg+9)
-                bb = math.ceil(bb+9) 
-                # use the heavily modified xy_set to set each pixel
-                xy_set(j+x,i+y,(rr,gg,bb))
+                if tr and (r[PxNum]+g[PxNum]+b[PxNum] > 0) or (not tr):
+                    # compress the data range from 0-255 to 0-246 to compensate for the 0-9 pixels all being black
+                    rr = r[PxNum]*246/255
+                    gg = g[PxNum]*246/255
+                    bb = b[PxNum]*246/255
+                    # adjust the brightness
+                    rr = rr*br
+                    gg = gg*br
+                    bb = bb*br
+                    # This is a crude gama adjustment formula which can help make bitmaps look more normal instead of washed out
+                    rr = math.pow(rr,ga) * 255 / math.pow(255,ga)
+                    gg = math.pow(gg,ga) * 255 / math.pow(255,ga)
+                    bb = math.pow(bb,ga) * 255 / math.pow(255,ga)
+                    #undo the compression
+                    rr = math.ceil(rr+9)
+                    gg = math.ceil(gg+9)
+                    bb = math.ceil(bb+9) 
+                    # use the heavily modified xy_set to set each pixel
+                    xy_set_valid(j+x,i+y,(rr,gg,bb))
             PxNum = PxNum + 1
     if threadNum == 1:
         threadLocked = False
@@ -288,8 +309,9 @@ def bitmap_set1_threads(x,y,ia,r,g,b,tr,threadNum):
         range2 = math.ceil(h/2)
     for i in range(range1,range2,1):
         for j in range(w):
-            if tr and p[PxNum] or not tr and j < 33:
-                xy_set(j+x,i+y,(p[PxNum]*r,p[PxNum]*g,p[PxNum]*b))
+            if valid_pixel(j+x,i+y):
+                if tr and p[PxNum] or not tr and j < 33:
+                    xy_set_valid(j+x,i+y,(p[PxNum]*r,p[PxNum]*g,p[PxNum]*b))
             PxNum = PxNum + 1
     if threadNum:
         threadLocked = False
@@ -317,7 +339,7 @@ def adjust_gama(color,ga):
 
 
 # define the quantity of bitmaps that will be defined starting at 0
-qtyOfBitmaps = 4
+qtyOfBitmaps = 1
 bitmap = [[],[],[],[],[]]
 
 # ======================= BITMAP DATA ======================= 
@@ -344,10 +366,10 @@ bitmap[2] = [[19],[5],[1,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,1,0,1,1,1,0,1,1,0,0
 # This array is stored as [width],[height],[pixel_list]
 bitmap[3] = [[81],[6],[1,1,1,0,1,1,0,0,1,1,0,1,0,1,0,0,0,1,1,0,0,0,0,1,1,1,1,0,0,0,1,0,1,1,0,1,0,0,0,0,1,1,1,1,1,0,0,1,1,1,0,0,1,1,1,0,0,1,1,1,1,1,0,0,0,1,1,0,0,0,0,1,0,0,0,0,1,0,0,0,1,1,1,1,0,1,0,1,1,0,1,0,1,0,1,0,1,1,0,1,0,1,1,1,1,1,1,1,1,0,1,1,0,1,1,0,1,0,1,1,1,1,1,1,1,0,1,1,0,1,0,1,1,0,1,0,1,1,0,1,1,1,1,0,1,1,0,1,0,1,1,1,1,0,1,1,1,1,0,1,1,0,1,1,1,0,1,0,1,1,0,1,0,1,0,1,0,1,1,0,1,0,0,0,1,1,1,1,1,1,0,1,1,0,0,0,0,1,0,0,0,1,1,1,1,1,0,1,1,1,1,0,1,1,0,1,0,1,1,0,1,1,1,1,0,1,1,0,1,0,0,0,1,1,0,0,0,1,1,0,1,1,0,1,1,1,0,1,0,0,0,0,1,1,0,1,1,0,1,1,0,1,0,1,1,1,1,1,1,1,1,0,1,1,0,1,1,0,1,0,1,1,1,1,1,1,1,0,1,0,0,1,0,1,1,0,1,0,1,1,0,1,1,1,1,0,1,1,0,1,0,1,1,1,1,0,1,1,1,1,0,0,0,1,0,1,1,0,1,0,1,1,0,1,1,0,1,1,0,1,1,0,1,0,1,1,1,1,1,1,1,1,0,1,1,0,1,1,0,1,0,1,1,1,1,1,1,1,0,1,1,0,1,0,1,1,0,1,0,1,1,0,1,1,1,1,0,1,1,0,1,0,1,1,1,1,0,1,1,1,1,0,1,1,0,1,0,0,1,1,0,1,1,0,1,1,0,1,1,0,0,0,1,1,0,0,0,0,1,1,1,1,1,0,1,1,0,1,1,0,1,0,0,0,0,1,1,1,1,1,0,0,1,1,1,0,0,1,1,1,0,0,1,1,1,1,1,0,0,0,1,1,0,0,0,0,1,0,0,0,0,1,0,1,1,0]]
 
-# colorful thing
 # Array for bitmap 4
 # This array is stored as [width],[height],[R_list],[G_list],[B_list]
 bitmap[4] = [[12],[6],[255,255,184,87,0,0,0,0,54,185,255,255,255,255,184,87,0,0,0,0,54,184,255,255,255,255,185,86,0,0,0,1,54,184,255,255,255,255,185,87,0,0,0,0,54,185,255,255,255,255,184,87,0,0,0,0,54,185,255,255,255,255,185,87,0,0,0,0,54,185,255,255],[65,196,255,255,255,255,206,76,0,0,0,0,65,195,255,255,255,255,206,76,0,0,0,0,65,195,255,255,255,255,206,76,0,0,0,0,65,195,255,255,255,255,206,76,0,0,0,0,65,195,255,255,255,255,207,76,0,0,0,0,65,196,255,255,255,255,206,76,0,0,0,1],[0,0,0,0,43,174,255,255,255,255,195,65,0,0,0,0,44,174,255,255,255,255,195,65,0,0,0,0,43,174,255,255,255,255,195,65,0,0,0,0,44,174,255,255,255,255,195,65,0,0,0,0,44,174,255,255,255,255,196,65,0,0,0,0,43,174,255,255,255,255,196,65]]
+
 
 
 
@@ -366,7 +388,7 @@ bitmap[4] = [[12],[6],[255,255,184,87,0,0,0,0,54,185,255,255,255,255,184,87,0,0,
 
 micropython.mem_info()
 TimeCounter = utime.ticks_ms()
-print("Loading took " + str(utime.ticks_ms()-TimeCounter) + "ms")
+print(utime.ticks_ms()-TimeCounter)
 
 # ========= Your code to control what is displayed goes here ========
 
@@ -402,7 +424,7 @@ for i in range(100):
 # for this example, you need two neopixels to see it all
 # set screens_h = 1
 # set screens_w = 2
-for sadfjhasd in range(2):
+for sadfjhasd in range(1):
     bg_pos = -11
     for i in range(32,-82,-1):
         TimeCounter = utime.ticks_ms()
@@ -422,8 +444,9 @@ for sadfjhasd in range(2):
             for j in range(2,8,1):
                 horiz(i+81,j,32-i-81,0,0,0)
         
-        utime.sleep_ms(150 - (utime.ticks_ms() - TimeCounter))
+        utime.sleep_ms(120 - (utime.ticks_ms() - TimeCounter))
         pixels_show()
+  
 
 
 # for this example, you need two neopixels to see it all
@@ -439,6 +462,7 @@ for i in range(17,-17,-1):
     # draw the bitmap over the background with black pixels treated as transparent
     bitmap_set24(i,0,bitmap[0],1.7,.8,True)
     # draw a few random pixels over the bitmap
+    # the normal xy_set does not check if you are setting a valid pixel. xy_set_valid does. Use it for safety.
     for i in range(12):
         xy_set(math.ceil(screen_total_width*random.random()),math.ceil(screen_total_height*random.random()),(200,200,200))
     # display the result
