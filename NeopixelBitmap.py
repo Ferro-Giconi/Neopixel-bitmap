@@ -125,14 +125,18 @@ def xy_set_valid(x, y, colour):
     pos = ((screen_number - 1) * 160) + (xx - 1) + (yy - 1) * 16
     pixels_set(pos, colour)
 
+# it seems silly to do this but anything that can save an operation two in the valid pixel check will
+# help improve how many μs each frame takes to display
+global screen_total_width_minus_one
+screen_total_width_minus_one = screen_total_width - 1
+global screen_total_height_minus_one
+screen_total_height_minus_one = screen_total_height - 1
 def valid_pixel(x,y):
     # check if a pixel is valid
-    x = x + 1
-    y = y + 1
     valid_pixel = True
     # Check if the pixel you want to set is outside the size of the
     # screen to avoid wasting CPU cycles on pixels that you can't see
-    if (x <= 0) or (y <= 0) or (x > screen_total_width) or (y > screen_total_height):
+    if (x<0) or (y<0) or (x > screen_total_width_minus_one) or (y > screen_total_height_minus_one):
         valid_pixel = False
     # If you configured a gap between neopixels, check if the pixel is on a gap
     if valid_pixel:
@@ -392,7 +396,7 @@ print(utime.ticks_ms()-TimeCounter)
 
 # ========= Your code to control what is displayed goes here ========
 
-
+TimeCounter = utime.ticks_ms()
 
 # for this example you need one neopixel
 # set screens_h = 1
@@ -401,7 +405,8 @@ for i in range(17,-17,-1):
     clear()
     bitmap_set1(i,2,bitmap[2],40,0,40,False)
     pixels_show()
-
+print("Animation 1 took " + str(utime.ticks_ms()-TimeCounter) + "ms")
+TimeCounter = utime.ticks_ms()
 # for this example you need one neopixel
 # set screens_h = 1
 # set screens_w = 1
@@ -414,9 +419,8 @@ for i in range(100):
     if bg_pos == 0:
         bg_pos = -11
     pixels_show()
-
-
-
+print("Animation 2 took " + str(utime.ticks_ms()-TimeCounter) + "ms")
+TimeCounter = utime.ticks_ms()
 # fancy scrolling text example with utime.sleep used to make frame times consistent
 # this uses all the CPU power the Pico can muster because of the image size.
 # I need to make things like this render more efficienetly.
@@ -424,10 +428,11 @@ for i in range(100):
 # for this example, you need two neopixels to see it all
 # set screens_h = 1
 # set screens_w = 2
+
 for sadfjhasd in range(1):
     bg_pos = -11
     for i in range(32,-82,-1):
-        TimeCounter = utime.ticks_ms()
+        FrameTime = utime.ticks_ms()
         # draw the background which is a tiled 12 pixel image
         for j in range(4):
             bitmap_set24(j*12+math.floor(bg_pos),2,bitmap[4],1,1)
@@ -444,15 +449,18 @@ for sadfjhasd in range(1):
             for j in range(2,8,1):
                 horiz(i+81,j,32-i-81,0,0,0)
         
-        utime.sleep_ms(120 - (utime.ticks_ms() - TimeCounter))
+        utime.sleep_ms(140 - (utime.ticks_ms() - FrameTime))
         pixels_show()
-  
+print("Animation 3 took " + str(utime.ticks_ms()-TimeCounter) + "ms")  
+TimeCounter = utime.ticks_ms()    
+
+
 
 
 # for this example, you need two neopixels to see it all
 # set screens_h = 2
 # set screens_w = 1
-TimeCounter = utime.ticks_ms()
+
 for i in range(17,-17,-1):
     # this example scrolls the bitmap from right to left over a static background
     # bitmap_set defines which bitmap to use.
@@ -467,7 +475,7 @@ for i in range(17,-17,-1):
         xy_set(math.ceil(screen_total_width*random.random()),math.ceil(screen_total_height*random.random()),(200,200,200))
     # display the result
     pixels_show()
-print("Animation took " + str(utime.ticks_ms()-TimeCounter) + "ms")
+print("Animation 4 took " + str(utime.ticks_ms()-TimeCounter) + "ms")
 utime.sleep_ms(100)
 
 
