@@ -271,7 +271,7 @@ def bitmap_set24_threads(x,y,ia,ga,br,tr,threadNum):
                     rr = math.pow(rr,ga) * 255 / math.pow(255,ga)
                     gg = math.pow(gg,ga) * 255 / math.pow(255,ga)
                     bb = math.pow(bb,ga) * 255 / math.pow(255,ga)
-                    #undo the compression
+                    # undo the compression
                     rr = math.ceil(rr+9)
                     gg = math.ceil(gg+9)
                     bb = math.ceil(bb+9) 
@@ -323,13 +323,6 @@ def bitmap_set1_threads(x,y,ia,r,g,b,tr,threadNum):
 def button_handler():
     asdf = "nothing here yet"
 
-def targetFT(ms=-1):
-    # define a target frame time in MS to improve frame time consistency.
-    # use 'frameTime = targetFT() at the begining of your frame code
-    # use targetFT(frameTime)
-    utime.sleep_ms(10)
-    asdf = "nothing here yet"
-
 def adjust_gama_list(color,ga):
     # this is a crude way to adjust the gama so that images don't display blown out on the screen
     for i in range(len(color)):
@@ -341,12 +334,42 @@ def adjust_gama(color,ga):
     color = math.trunc(math.pow(color,ga) * 255 / math.pow(255,ga))
     return(color)
 
+# ======================= BUTTON HANDLING ========================
+button4 = Pin(4, Pin.IN, Pin.PULL_UP)
+button5 = Pin(5, Pin.IN, Pin.PULL_UP)
+
+button_presses = 0 # the count of times the button has been pressed
+button_presses_last = 0
+button_last_time = 0 # the last time we pressed the button
+
+# This function gets called every time the button is pressed.
+def button_pressed(pin):
+    global button_presses, button_last_time
+    button_new_time = utime.ticks_ms()
+    print(str(pin))
+    # check the time for simple debouncing to prevent the button from triggering like 20 times when pressed
+    if (button_new_time - button_last_time) > 200:
+        # this should be pin.id but it does not work
+        if '5' in str(pin):
+            button_presses +=1
+        elif '4' in str(pin):
+            button_presses -=1
+        button_last_time = button_new_time
+
+def buttonBreak():
+    global button_presses, button_presses_last
+    if not button_presses == button_presses_last:
+        return True
+
+button4.irq(trigger=Pin.IRQ_FALLING, handler = button_pressed)
+button5.irq(trigger=Pin.IRQ_FALLING, handler = button_pressed)
+
+# ======================= BITMAP DATA ======================= 
 
 # define the quantity of bitmaps that will be defined starting at 0
 qtyOfBitmaps = 1
 bitmap = [[],[],[],[],[]]
 
-# ======================= BITMAP DATA ======================= 
 
 # test image of jayde's head
 # Array for bitmap 0
@@ -394,92 +417,121 @@ micropython.mem_info()
 TimeCounter = utime.ticks_ms()
 print(utime.ticks_ms()-TimeCounter)
 
-# ========= Your code to control what is displayed goes here ========
+# ========= Define animation code here as functions ========
+# animations that you want to be interrupted by buttons should have the one line
+# if buttonBreak():break
+# in the animation's loops to make sure the animation can be stopped in a timely manner
 
-TimeCounter = utime.ticks_ms()
 
-# for this example you need one neopixel
-# set screens_h = 1
-# set screens_w = 1
-for i in range(17,-17,-1):
-    clear()
-    bitmap_set1(i,2,bitmap[2],40,0,40,False)
-    pixels_show()
-print("Animation 1 took " + str(utime.ticks_ms()-TimeCounter) + "ms")
-TimeCounter = utime.ticks_ms()
-# for this example you need one neopixel
-# set screens_h = 1
-# set screens_w = 1
-bg_pos = -11
-for i in range(100):
-    # draw the background which is a tiled 12 pixel image
-    for j in range(3):
-        bitmap_set24(j*12+bg_pos,2,bitmap[4],1,1)
-    bg_pos = bg_pos + 1
-    if bg_pos == 0:
-        bg_pos = -11
-    pixels_show()
-print("Animation 2 took " + str(utime.ticks_ms()-TimeCounter) + "ms")
-TimeCounter = utime.ticks_ms()
-# fancy scrolling text example with utime.sleep used to make frame times consistent
-# this uses all the CPU power the Pico can muster because of the image size.
-# I need to make things like this render more efficienetly.
-
-# for this example, you need two neopixels to see it all
-# set screens_h = 1
-# set screens_w = 2
-
-for sadfjhasd in range(1):
-    bg_pos = -11
-    for i in range(32,-82,-1):
-        FrameTime = utime.ticks_ms()
-        # draw the background which is a tiled 12 pixel image
-        for j in range(4):
-            bitmap_set24(j*12+math.floor(bg_pos),2,bitmap[4],1,1)
-        bg_pos = bg_pos + .5
-        if bg_pos == 0:
-            bg_pos = -11
-        # draw the text
-        bitmap_set1(i,2,bitmap[3],0,0,0,True)
-        # draw black pixels to prevent the background from being visible once the text passes
-        if i > 0:
-            for j in range(2,8,1):
-                horiz(0,j,i,0,0,0)
-        if i < 32-81:
-            for j in range(2,8,1):
-                horiz(i+81,j,32-i-81,0,0,0)
-        
-        utime.sleep_ms(140 - (utime.ticks_ms() - FrameTime))
+def animation0():
+    # for this example you need one neopixel
+    # set screens_h = 1
+    # set screens_w = 1
+    # Displays the text "load..." which I created thinking there might be a perceptible loading time
+    # but there wasn't so it's just one of the example animations.
+    TimeCounter = utime.ticks_ms()
+    for i in range(17,-17,-1):
+        clear()
+        bitmap_set1(i,2,bitmap[2],40,0,40,False)
         pixels_show()
-print("Animation 3 took " + str(utime.ticks_ms()-TimeCounter) + "ms")  
-TimeCounter = utime.ticks_ms()    
+        # stop the animation if a button is pressed
+        if buttonBreak():break
+    print("Animation 0 took " + str(utime.ticks_ms()-TimeCounter) + "ms")
 
-
-
-
-# for this example, you need two neopixels to see it all
-# set screens_h = 2
-# set screens_w = 1
-
-for i in range(17,-17,-1):
-    # this example scrolls the bitmap from right to left over a static background
-    # bitmap_set defines which bitmap to use.
-    # normally clear() would be needed, but with a background it isn't needed so it is commented out
-    # clear()
-    bitmap_set24(0,0,bitmap[1],2,.3)
-    # draw the bitmap over the background with black pixels treated as transparent
-    bitmap_set24(i,0,bitmap[0],1.7,.8,True)
-    # draw a few random pixels over the bitmap
-    # the normal xy_set does not check if you are setting a valid pixel. xy_set_valid does. Use it for safety.
+def animation1():    
+    # for this example you need one neopixel
+    # set screens_h = 1
+    # set screens_w = 1
+    TimeCounter = utime.ticks_ms()
+    bg_pos = -12
     for i in range(12):
-        xy_set(math.ceil(screen_total_width*random.random()),math.ceil(screen_total_height*random.random()),(200,200,200))
-    # display the result
-    pixels_show()
-print("Animation 4 took " + str(utime.ticks_ms()-TimeCounter) + "ms")
-utime.sleep_ms(100)
+        # draw the background which is a tiled 12 pixel image
+        for j in range(3):
+            bitmap_set24(j*12+bg_pos,2,bitmap[4],1,.6)
+        bg_pos = bg_pos + 1
+        if bg_pos == 0:
+            bg_pos = -12
+        pixels_show()
+        if buttonBreak():break
+    print("Animation 1 took " + str(utime.ticks_ms()-TimeCounter) + "ms")
+
+def animation2():
+    # fancy scrolling text example with utime.sleep used to make frame times consistent
+    # this uses all the CPU power because of the image size.
+
+    # for this example, you need two neopixels to see it all
+    # set screens_h = 1
+    # set screens_w = 2
+    TimeCounter = utime.ticks_ms()
+    for sadfjhasd in range(1):
+        bg_pos = -11
+        for i in range(32,-82,-1):
+            FrameTime = utime.ticks_ms()
+            # draw the background which is a tiled 12 pixel image
+            for j in range(4):
+                bitmap_set24(j*12+math.floor(bg_pos),2,bitmap[4],1,1)
+            bg_pos = bg_pos + .5
+            if bg_pos == 0:
+                bg_pos = -11
+            # draw the text.
+            bitmap_set1(i,2,bitmap[3],0,0,0,True)
+            # draw black pixels to prevent the background from being visible once the text passes
+            if i > 0:
+                for j in range(2,8,1):
+                    horiz(0,j,i,0,0,0)
+            if i < 32-81:
+                for j in range(2,8,1):
+                    horiz(i+81,j,32-i-81,0,0,0)
+            utime.sleep_ms(100 - (utime.ticks_ms() - FrameTime))
+            pixels_show()
+            if buttonBreak():break
+    print("Animation 2 took " + str(utime.ticks_ms()-TimeCounter) + "ms")  
+
+def animation3():
+    # for this example, you need two neopixels to see it all
+    # set screens_h = 2
+    # set screens_w = 1
+    TimeCounter = utime.ticks_ms()
+    for i in range(17,-17,-1):
+        # this example scrolls the bitmap from right to left over a static background
+        # bitmap_set defines which bitmap to use.
+        # normally clear() would be needed, but with a background it isn't needed so it is commented out
+        # clear()
+        bitmap_set24(0,0,bitmap[1],2,.3)
+        # draw the bitmap over the background with black pixels treated as transparent
+        bitmap_set24(i,0,bitmap[0],1.7,.8,True)
+        # draw a few random pixels over the bitmap
+        # the normal xy_set does not check if you are setting a valid pixel. xy_set_valid does. Use it for safety.
+        for i in range(12):
+            xy_set(math.ceil(screen_total_width*random.random()),math.ceil(screen_total_height*random.random()),(200,200,200))
+        # display the result
+        pixels_show()
+        if buttonBreak():break
+    print("Animation 3 took " + str(utime.ticks_ms()-TimeCounter) + "ms")
 
 
-
+# ======================= Runs animations on a loop ==================
+number_of_animations = 3
+while True:
+    if not button_presses_last == button_presses:
+        # only clear the screen if the animation is changed, otherwise let the
+        # animation handle its own screen clearing
+        clear()
+        button_presses_last = button_presses
+    
+    if button_presses < 0:
+        button_presses = number_of_animations
+    if button_presses > number_of_animations:
+        button_presses = 0
+        
+    # play the selected animation
+    eval('animation' + str(button_presses) + '()')
+    
+    
+    
+    
+    
+    
 
 clear()
 pixels_show()
