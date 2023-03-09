@@ -2,13 +2,33 @@
 # Tony Goodhew 19th April 2022 for thepihut.com
 import array
 import utime
-from machine import Pin
+from machine import ADC, Pin
 import rp2
 import random
 import math
 import micropython
 import _thread
 
+
+# ==================================== battery ===================================
+# reads the battery voltage on pin GP26 which is ADC0 on the Tiny2040
+vsys = ADC(26)
+# conversion factor to convert the output into a voltage. This uses a voltage
+# divider to divide the voltage reading in half so it multiplies by 2.
+conversion_factor = 2 * 3.3 / 65535
+# these still need to be tuned based on what the ADC pin actually sees
+full_battery = 4.2
+empty_battery = 3.3
+# convert the raw ADC read into a voltage, and then a percentage
+battery_voltage = vsys.read_u16() * conversion_factor
+battery_percentage = 100 * ((battery_voltage - empty_battery) / (full_battery - empty_battery))
+if battery_percentage > 100:
+    battery_percentage = 100.00
+
+# battery voltage and percengate.
+print('{:.2f}'.format(battery_voltage) + "v   -   " + '{:.0f}%'.format(battery_percentage))
+
+# ==================================== screen stuff ===================================
 # in variable names: w = width on the x axis and h = height on the y axis
 
 # define how many Neopixels you have, width and height
@@ -268,13 +288,13 @@ def bitmap_set24_threads(x,y,ia,ga,br,tr,threadNum):
                     gg = gg*br
                     bb = bb*br
                     # This is a crude gama adjustment formula which can help make bitmaps look more normal instead of washed out
-                    rr = math.pow(rr,ga) * 255 / math.pow(255,ga)
-                    gg = math.pow(gg,ga) * 255 / math.pow(255,ga)
-                    bb = math.pow(bb,ga) * 255 / math.pow(255,ga)
+                    rr = math.pow(rr,ga) * 246 / math.pow(246,ga)
+                    gg = math.pow(gg,ga) * 246 / math.pow(246,ga)
+                    bb = math.pow(bb,ga) * 246 / math.pow(246,ga)
                     # undo the compression
                     rr = math.ceil(rr+9)
                     gg = math.ceil(gg+9)
-                    bb = math.ceil(bb+9) 
+                    bb = math.ceil(bb+9)
                     # use the heavily modified xy_set to set each pixel
                     xy_set_valid(j+x,i+y,(rr,gg,bb))
             PxNum = PxNum + 1
@@ -357,6 +377,7 @@ def button_pressed(pin):
         button_last_time = button_new_time
 
 def buttonBreak():
+    # simple function to make code more readable in the animations
     global button_presses, button_presses_last
     if not button_presses == button_presses_last:
         return True
@@ -447,7 +468,7 @@ def animation1():
     for i in range(12):
         # draw the background which is a tiled 12 pixel image
         for j in range(3):
-            bitmap_set24(j*12+bg_pos,2,bitmap[4],1,.6)
+            bitmap_set24(j*12+bg_pos,2,bitmap[4],1.8,.3)
         bg_pos = bg_pos + 1
         if bg_pos == 0:
             bg_pos = -12
@@ -482,7 +503,7 @@ def animation2():
             if i < 32-81:
                 for j in range(2,8,1):
                     horiz(i+81,j,32-i-81,0,0,0)
-            utime.sleep_ms(100 - (utime.ticks_ms() - FrameTime))
+            utime.sleep_ms(10 - (utime.ticks_ms() - FrameTime))
             pixels_show()
             if buttonBreak():break
     print("Animation 2 took " + str(utime.ticks_ms()-TimeCounter) + "ms")  
