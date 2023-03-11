@@ -2,31 +2,13 @@
 # Tony Goodhew 19th April 2022 for thepihut.com
 import array
 import utime
-from machine import ADC, Pin
+from machine import Pin
 import rp2
 import random
 import math
 import micropython
 import _thread
 
-
-# ==================================== battery ===================================
-# reads the battery voltage on pin GP26 which is ADC0 on the Tiny2040
-vsys = ADC(26)
-# conversion factor to convert the output into a voltage. This uses a voltage
-# divider to divide the voltage reading in half so it multiplies by 2.
-conversion_factor = 2 * 3.3 / 65535
-# these still need to be tuned based on what the ADC pin actually sees
-full_battery = 4.2
-empty_battery = 3.3
-# convert the raw ADC read into a voltage, and then a percentage
-battery_voltage = vsys.read_u16() * conversion_factor
-battery_percentage = 100 * ((battery_voltage - empty_battery) / (full_battery - empty_battery))
-if battery_percentage > 100:
-    battery_percentage = 100.00
-
-# battery voltage and percengate.
-print('{:.2f}'.format(battery_voltage) + "v   -   " + '{:.0f}%'.format(battery_percentage))
 
 # ==================================== screen stuff ===================================
 # in variable names: w = width on the x axis and h = height on the y axis
@@ -340,9 +322,6 @@ def bitmap_set1_threads(x,y,ia,r,g,b,tr,threadNum):
     if threadNum:
         threadLocked = False
 
-def button_handler():
-    asdf = "nothing here yet"
-
 def adjust_gama_list(color,ga):
     # this is a crude way to adjust the gama so that images don't display blown out on the screen
     for i in range(len(color)):
@@ -355,8 +334,8 @@ def adjust_gama(color,ga):
     return(color)
 
 # ======================= BUTTON HANDLING ========================
-button4 = Pin(4, Pin.IN, Pin.PULL_UP)
-button5 = Pin(5, Pin.IN, Pin.PULL_UP)
+button2 = Pin(2, Pin.IN, Pin.PULL_UP)
+button3 = Pin(3, Pin.IN, Pin.PULL_UP)
 
 button_presses = 0 # the count of times the button has been pressed
 button_presses_last = 0
@@ -366,15 +345,16 @@ button_last_time = 0 # the last time we pressed the button
 def button_pressed(pin):
     global button_presses, button_last_time
     button_new_time = utime.ticks_ms()
-    print(str(pin))
+    
     # check the time for simple debouncing to prevent the button from triggering like 20 times when pressed
     if (button_new_time - button_last_time) > 200:
         # this should be pin.id but it does not work
-        if '5' in str(pin):
+        if '3' in str(pin):
             button_presses +=1
-        elif '4' in str(pin):
+        elif '2' in str(pin):
             button_presses -=1
         button_last_time = button_new_time
+        print(str(pin))
 
 def buttonBreak():
     # simple function to make code more readable in the animations
@@ -382,44 +362,8 @@ def buttonBreak():
     if not button_presses == button_presses_last:
         return True
 
-button4.irq(trigger=Pin.IRQ_FALLING, handler = button_pressed)
-button5.irq(trigger=Pin.IRQ_FALLING, handler = button_pressed)
-
-# ======================= BITMAP DATA ======================= 
-
-# define the quantity of bitmaps that will be defined starting at 0
-qtyOfBitmaps = 1
-bitmap = [[],[],[],[],[]]
-
-
-# test image of jayde's head
-# Array for bitmap 0
-# This array is stored as [width],[height],[R_list],[G_list],[B_list]
-bitmap[0] = [[16],[20],[0,0,0,0,3,70,70,70,70,70,70,70,70,70,70,70,0,0,0,3,70,70,70,70,70,70,70,70,70,70,3,70,0,0,3,70,70,70,70,70,70,70,70,70,70,3,70,70,0,3,70,70,70,70,70,70,70,70,70,70,70,3,70,3,0,3,70,70,70,70,70,70,70,70,70,70,147,3,70,3,3,70,70,70,70,70,70,70,70,70,70,3,147,3,70,3,0,3,70,70,70,70,70,70,70,70,3,3,3,0,3,0,0,3,147,70,3,70,70,70,70,70,3,0,0,0,0,0,3,147,147,147,3,147,70,70,70,70,3,0,0,0,0,0,3,147,147,3,147,147,147,147,70,70,3,0,0,0,0,0,3,147,147,3,147,147,147,147,147,147,3,0,0,0,0,0,3,147,147,3,147,147,147,147,147,147,3,0,0,0,0,0,0,3,147,147,3,147,147,147,147,3,0,0,0,0,0,0,0,3,147,147,3,147,147,147,147,3,0,0,0,0,0,0,3,147,147,147,3,147,147,147,147,3,0,0,0,0,0,0,3,147,147,147,3,147,147,147,147,3,0,0,0,0,0,0,3,147,147,3,147,147,147,147,147,3,0,0,0,0,0,0,0,3,3,0,3,3,147,3,3,0,0,0,0,0,0,0,0,0,0,0,0,3,147,3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3,0,0,0,0,0,0,0,0,0],[0,0,0,0,3,34,34,34,34,34,34,34,34,34,34,34,0,0,0,3,34,34,34,34,34,34,34,34,34,34,3,34,0,0,3,34,34,34,34,34,34,34,34,34,34,3,34,34,0,3,34,34,34,34,34,34,34,34,34,34,34,3,34,3,0,3,34,34,34,34,34,34,34,34,34,34,225,3,34,3,3,34,34,34,34,34,34,34,34,34,34,3,225,3,34,3,0,3,34,34,34,34,34,34,34,34,3,3,3,0,3,0,0,3,225,34,3,34,34,34,34,34,3,0,0,0,0,0,3,225,225,225,3,225,34,34,34,34,3,0,0,0,0,0,3,225,225,3,225,225,225,225,34,34,3,0,0,0,0,0,3,225,225,3,225,225,225,225,225,225,3,0,0,0,0,0,3,225,225,3,225,225,225,225,225,225,3,0,0,0,0,0,0,3,225,225,3,225,225,225,225,3,0,0,0,0,0,0,0,3,225,225,3,225,225,225,225,3,0,0,0,0,0,0,3,225,225,225,3,225,225,225,225,3,0,0,0,0,0,0,3,225,225,225,3,225,225,225,225,3,0,0,0,0,0,0,3,225,225,3,225,225,225,225,225,3,0,0,0,0,0,0,0,3,3,0,3,3,225,3,3,0,0,0,0,0,0,0,0,0,0,0,0,3,225,3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3,0,0,0,0,0,0,0,0,0],[0,0,0,0,3,85,85,85,85,85,85,85,85,85,85,85,0,0,0,3,85,85,85,85,85,85,85,85,85,85,3,85,0,0,3,85,85,85,85,85,85,85,85,85,85,3,85,85,0,3,85,85,85,85,85,85,85,85,85,85,85,3,85,3,0,3,85,85,85,85,85,85,85,85,85,85,216,3,85,3,3,85,85,85,85,85,85,85,85,85,85,3,216,3,85,3,0,3,85,85,85,85,85,85,85,85,3,3,3,0,3,0,0,3,216,85,3,85,85,85,85,85,3,0,0,0,0,0,3,216,216,216,3,216,85,85,85,85,3,0,0,0,0,0,3,216,216,3,216,216,216,216,85,85,3,0,0,0,0,0,3,216,216,3,216,216,216,216,216,216,3,0,0,0,0,0,3,216,216,3,216,216,216,216,216,216,3,0,0,0,0,0,0,3,216,216,3,216,216,216,216,3,0,0,0,0,0,0,0,3,216,216,3,216,216,216,216,3,0,0,0,0,0,0,3,216,216,216,3,216,216,216,216,3,0,0,0,0,0,0,3,216,216,216,3,216,216,216,216,3,0,0,0,0,0,0,3,216,216,3,216,216,216,216,216,3,0,0,0,0,0,0,0,3,3,0,3,3,216,3,3,0,0,0,0,0,0,0,0,0,0,0,0,3,216,3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3,0,0,0,0,0,0,0,0,0]]
-
-# test image of jayde's hoof
-# Array for bitmap 1
-# This array is stored as [width],[height],[R_list],[G_list],[B_list]
-bitmap[1] = [[16],[20],[187,176,154,94,41,9,0,0,1,12,25,44,66,89,117,136,193,180,151,91,43,13,3,3,7,20,30,46,65,85,107,125,203,187,143,87,46,19,9,8,18,32,39,50,64,77,85,99,204,183,132,82,49,25,13,11,23,40,44,49,58,65,60,70,195,168,118,76,51,31,17,12,26,46,46,44,47,47,34,38,182,152,106,71,52,34,21,20,34,48,46,39,36,29,7,0,167,140,102,69,51,33,27,32,43,47,44,35,27,14,0,0,165,142,110,79,56,36,34,41,49,47,41,31,18,2,0,0,177,157,127,98,65,41,42,48,50,46,38,27,9,0,0,0,183,168,147,119,77,50,47,48,46,41,33,22,4,0,0,0,183,175,166,140,90,61,48,41,37,31,27,16,4,0,0,0,178,174,173,153,102,73,50,34,26,22,22,12,5,0,0,0,170,167,169,159,113,84,54,30,19,18,19,12,4,0,0,0,168,164,168,161,119,89,56,29,17,21,20,14,4,0,0,0,171,166,171,160,121,89,57,32,23,28,25,17,4,0,0,0,173,166,169,153,114,84,56,35,31,37,32,22,8,2,2,4,172,164,162,139,98,73,51,36,39,45,39,28,15,7,7,11,172,163,153,122,81,60,43,32,40,50,46,34,23,16,16,21,175,163,144,104,66,48,33,24,35,51,51,40,31,24,24,30,176,163,140,93,57,41,27,18,32,52,54,43,34,28,28,33],[0,0,5,16,13,13,28,40,45,50,49,54,69,90,104,104,0,1,7,17,14,14,29,41,49,58,59,69,92,115,126,135,0,3,11,18,17,16,30,43,58,71,78,94,125,150,160,177,6,12,20,22,20,19,32,50,72,94,112,138,164,179,194,209,16,23,29,28,23,23,37,60,90,120,149,183,201,203,226,233,25,33,35,31,25,26,45,76,112,150,189,214,224,224,241,241,34,43,40,33,27,29,57,95,135,181,227,236,236,242,242,236,45,55,54,45,36,41,75,115,158,207,246,247,244,246,237,227,58,68,71,61,49,57,95,136,180,229,251,249,250,239,226,216,74,82,85,76,64,78,119,159,202,243,251,248,247,230,216,207,91,96,97,91,79,101,145,184,223,249,246,245,236,222,208,200,103,108,106,103,96,125,168,209,238,248,240,237,225,213,202,195,114,120,115,116,113,147,189,232,246,240,231,227,217,206,198,194,140,143,137,133,131,162,202,240,244,228,220,216,209,199,195,194,174,172,165,154,149,173,208,235,233,214,208,205,202,192,191,194,206,199,189,172,165,182,210,227,219,199,195,194,193,187,189,192,233,223,208,187,180,190,210,220,204,185,182,183,183,183,188,189,248,239,224,201,192,200,217,222,200,176,169,172,174,179,187,187,253,249,237,212,203,211,228,233,207,174,159,161,165,175,186,186,255,254,243,218,208,217,234,238,211,173,154,156,161,172,185,186],[152,154,156,133,143,158,168,172,179,179,171,161,151,133,104,79,165,165,160,141,150,164,173,177,182,181,176,170,162,139,101,74,186,183,167,155,165,175,183,188,188,185,186,186,179,149,94,63,201,193,174,172,184,192,200,207,204,198,201,204,190,146,84,50,208,194,180,191,205,211,220,231,227,216,219,220,192,129,68,37,211,195,191,209,223,230,237,246,243,234,234,221,180,110,58,36,210,196,205,225,239,246,249,252,251,248,244,205,152,94,59,48,208,196,207,227,244,254,255,255,255,254,238,185,130,91,72,64,205,194,196,216,238,254,255,255,255,252,216,162,123,101,89,80,189,182,184,201,227,248,253,255,255,245,194,146,123,114,108,98,158,158,171,186,211,235,250,255,253,232,179,141,128,127,125,117,129,134,154,171,194,221,243,253,248,217,169,141,129,131,136,134,108,115,131,158,177,204,232,249,236,200,164,142,126,127,140,149,94,102,114,145,161,186,216,234,219,184,159,140,122,121,140,158,88,97,109,132,145,167,194,207,195,170,153,135,115,113,137,163,78,87,101,118,127,145,167,177,169,155,146,129,111,111,137,163,58,70,87,104,106,120,136,144,142,139,136,124,108,115,140,161,43,54,72,89,87,96,106,112,116,122,124,115,106,120,146,161,40,43,58,72,74,78,82,86,95,105,110,105,104,127,153,162,39,38,49,61,67,69,67,70,82,95,101,99,103,130,157,164]]
-
-# 1 bit bitmap
-# "load..." text
-# Array for bitmap 2
-# This array is stored as [width],[height],[pixel_list]
-bitmap[2] = [[19],[5],[1,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,1,0,1,1,1,0,1,1,0,0,0,0,1,0,0,0,0,0,0,1,0,1,0,1,0,0,0,1,0,0,1,1,0,0,0,0,0,0,1,0,1,0,1,0,1,1,1,0,1,0,1,0,0,0,0,0,0,1,0,1,1,1,0,1,1,1,0,1,1,1,0,1,0,1,0,1]]
-
-# 1 bit bitmap
-# jayde the goo deer text
-# Array for bitmap 3
-# This array is stored as [width],[height],[pixel_list]
-bitmap[3] = [[81],[6],[1,1,1,0,1,1,0,0,1,1,0,1,0,1,0,0,0,1,1,0,0,0,0,1,1,1,1,0,0,0,1,0,1,1,0,1,0,0,0,0,1,1,1,1,1,0,0,1,1,1,0,0,1,1,1,0,0,1,1,1,1,1,0,0,0,1,1,0,0,0,0,1,0,0,0,0,1,0,0,0,1,1,1,1,0,1,0,1,1,0,1,0,1,0,1,0,1,1,0,1,0,1,1,1,1,1,1,1,1,0,1,1,0,1,1,0,1,0,1,1,1,1,1,1,1,0,1,1,0,1,0,1,1,0,1,0,1,1,0,1,1,1,1,0,1,1,0,1,0,1,1,1,1,0,1,1,1,1,0,1,1,0,1,1,1,0,1,0,1,1,0,1,0,1,0,1,0,1,1,0,1,0,0,0,1,1,1,1,1,1,0,1,1,0,0,0,0,1,0,0,0,1,1,1,1,1,0,1,1,1,1,0,1,1,0,1,0,1,1,0,1,1,1,1,0,1,1,0,1,0,0,0,1,1,0,0,0,1,1,0,1,1,0,1,1,1,0,1,0,0,0,0,1,1,0,1,1,0,1,1,0,1,0,1,1,1,1,1,1,1,1,0,1,1,0,1,1,0,1,0,1,1,1,1,1,1,1,0,1,0,0,1,0,1,1,0,1,0,1,1,0,1,1,1,1,0,1,1,0,1,0,1,1,1,1,0,1,1,1,1,0,0,0,1,0,1,1,0,1,0,1,1,0,1,1,0,1,1,0,1,1,0,1,0,1,1,1,1,1,1,1,1,0,1,1,0,1,1,0,1,0,1,1,1,1,1,1,1,0,1,1,0,1,0,1,1,0,1,0,1,1,0,1,1,1,1,0,1,1,0,1,0,1,1,1,1,0,1,1,1,1,0,1,1,0,1,0,0,1,1,0,1,1,0,1,1,0,1,1,0,0,0,1,1,0,0,0,0,1,1,1,1,1,0,1,1,0,1,1,0,1,0,0,0,0,1,1,1,1,1,0,0,1,1,1,0,0,1,1,1,0,0,1,1,1,1,1,0,0,0,1,1,0,0,0,0,1,0,0,0,0,1,0,1,1,0]]
-
-# Array for bitmap 4
-# This array is stored as [width],[height],[R_list],[G_list],[B_list]
-bitmap[4] = [[12],[6],[255,255,184,87,0,0,0,0,54,185,255,255,255,255,184,87,0,0,0,0,54,184,255,255,255,255,185,86,0,0,0,1,54,184,255,255,255,255,185,87,0,0,0,0,54,185,255,255,255,255,184,87,0,0,0,0,54,185,255,255,255,255,185,87,0,0,0,0,54,185,255,255],[65,196,255,255,255,255,206,76,0,0,0,0,65,195,255,255,255,255,206,76,0,0,0,0,65,195,255,255,255,255,206,76,0,0,0,0,65,195,255,255,255,255,206,76,0,0,0,0,65,195,255,255,255,255,207,76,0,0,0,0,65,196,255,255,255,255,206,76,0,0,0,1],[0,0,0,0,43,174,255,255,255,255,195,65,0,0,0,0,44,174,255,255,255,255,195,65,0,0,0,0,43,174,255,255,255,255,195,65,0,0,0,0,44,174,255,255,255,255,195,65,0,0,0,0,44,174,255,255,255,255,196,65,0,0,0,0,43,174,255,255,255,255,196,65]]
-
-
-
+button2.irq(trigger=Pin.IRQ_FALLING, handler = button_pressed)
+button3.irq(trigger=Pin.IRQ_FALLING, handler = button_pressed)
 
 
 # ================  Replace everyting before this line  ================
@@ -443,6 +387,7 @@ print(utime.ticks_ms()-TimeCounter)
 # if buttonBreak():break
 # in the animation's loops to make sure the animation can be stopped in a timely manner
 
+import BitmapData
 
 def animation0():
     # for this example you need one neopixel
@@ -450,31 +395,27 @@ def animation0():
     # set screens_w = 1
     # Displays the text "load..." which I created thinking there might be a perceptible loading time
     # but there wasn't so it's just one of the example animations.
-    TimeCounter = utime.ticks_ms()
     for i in range(17,-17,-1):
         clear()
-        bitmap_set1(i,2,bitmap[2],40,0,40,False)
+        bitmap_set1(i,2,BitmapData.bitmap(2),40,0,40,False)
         pixels_show()
-        # stop the animation if a button is pressed
+        # break the for loop if a buttnon is pressed so animation changes are more responsive
         if buttonBreak():break
-    print("Animation 0 took " + str(utime.ticks_ms()-TimeCounter) + "ms")
 
 def animation1():    
     # for this example you need one neopixel
     # set screens_h = 1
     # set screens_w = 1
-    TimeCounter = utime.ticks_ms()
     bg_pos = -12
     for i in range(12):
         # draw the background which is a tiled 12 pixel image
         for j in range(3):
-            bitmap_set24(j*12+bg_pos,2,bitmap[4],1.8,.3)
+            bitmap_set24(j*12+bg_pos,2,BitmapData.bitmap(4),1.8,.3)
         bg_pos = bg_pos + 1
         if bg_pos == 0:
             bg_pos = -12
         pixels_show()
         if buttonBreak():break
-    print("Animation 1 took " + str(utime.ticks_ms()-TimeCounter) + "ms")
 
 def animation2():
     # fancy scrolling text example with utime.sleep used to make frame times consistent
@@ -483,19 +424,18 @@ def animation2():
     # for this example, you need two neopixels to see it all
     # set screens_h = 1
     # set screens_w = 2
-    TimeCounter = utime.ticks_ms()
     for sadfjhasd in range(1):
         bg_pos = -11
         for i in range(32,-82,-1):
             FrameTime = utime.ticks_ms()
             # draw the background which is a tiled 12 pixel image
             for j in range(4):
-                bitmap_set24(j*12+math.floor(bg_pos),2,bitmap[4],1,1)
+                bitmap_set24(j*12+math.floor(bg_pos),2,BitmapData.bitmap(4),1,1)
             bg_pos = bg_pos + .5
             if bg_pos == 0:
                 bg_pos = -11
             # draw the text.
-            bitmap_set1(i,2,bitmap[3],0,0,0,True)
+            bitmap_set1(i,2,BitmapData.bitmap(3),0,0,0,True)
             # draw black pixels to prevent the background from being visible once the text passes
             if i > 0:
                 for j in range(2,8,1):
@@ -503,24 +443,23 @@ def animation2():
             if i < 32-81:
                 for j in range(2,8,1):
                     horiz(i+81,j,32-i-81,0,0,0)
-            utime.sleep_ms(10 - (utime.ticks_ms() - FrameTime))
+            utime.sleep_ms(100 - (utime.ticks_ms() - FrameTime))
             pixels_show()
             if buttonBreak():break
-    print("Animation 2 took " + str(utime.ticks_ms()-TimeCounter) + "ms")  
 
 def animation3():
     # for this example, you need two neopixels to see it all
     # set screens_h = 2
     # set screens_w = 1
-    TimeCounter = utime.ticks_ms()
+    
     for i in range(17,-17,-1):
         # this example scrolls the bitmap from right to left over a static background
         # bitmap_set defines which bitmap to use.
         # normally clear() would be needed, but with a background it isn't needed so it is commented out
         # clear()
-        bitmap_set24(0,0,bitmap[1],2,.3)
+        bitmap_set24(0,0,BitmapData.bitmap(1),2,.3)
         # draw the bitmap over the background with black pixels treated as transparent
-        bitmap_set24(i,0,bitmap[0],1.7,.8,True)
+        bitmap_set24(i,0,BitmapData.bitmap(0),1.7,.8,True)
         # draw a few random pixels over the bitmap
         # the normal xy_set does not check if you are setting a valid pixel. xy_set_valid does. Use it for safety.
         for i in range(12):
@@ -528,10 +467,11 @@ def animation3():
         # display the result
         pixels_show()
         if buttonBreak():break
-    print("Animation 3 took " + str(utime.ticks_ms()-TimeCounter) + "ms")
-
+    
 
 # ======================= Runs animations on a loop ==================
+
+# set how any animations to loop through with buttons
 number_of_animations = 3
 while True:
     if not button_presses_last == button_presses:
@@ -546,10 +486,9 @@ while True:
         button_presses = 0
         
     # play the selected animation
+    TimeCounter = utime.ticks_ms()
     eval('animation' + str(button_presses) + '()')
-    
-    
-    
+    print('Animation ' + str(button_presses) + ' took ' + str(utime.ticks_ms()-TimeCounter) + 'ms')
     
     
     
