@@ -29,6 +29,11 @@ gap_w = 0
 global gap_h
 gap_h = 0
 
+# If you are using two NeoPixels on pins 5 and 6 to improve performance when using exactly 2 neopixels,
+# set this to True. Otherwise, set it to False. This is an optimization specific to using two neopixels
+# on those pins.
+ImUsingPins6and5 = True
+
 # I couldn't figure out how to check if the second thread is locked correctly so instead I'm using a global variable
 global threadLocked
 threadLocked = False
@@ -91,26 +96,68 @@ def ws2812():
     nop()                   .side(0)    [T2 - 1]
     wrap()
 
-# Create the StateMachine with the ws2812 program, outputting on pin
-# You can also increase the frequency to improve performance by 1-2ms
-sm = rp2.StateMachine(0, ws2812, freq=8_000_000, sideset_base=Pin(PIN_NUM))
+if ImUsingPins6and5:
+    sm1 = rp2.StateMachine(0, ws2812, freq=8_000_000, sideset_base=Pin(6))
+    sm2 = rp2.StateMachine(1, ws2812, freq=8_000_000, sideset_base=Pin(5))
+    sm1.active(1)
+    sm2.active(1)
+    ar = array.array("I", [0 for _ in range(320)])
+    ar2 = array.array("I", [0 for _ in range(160)])
+    ar3 = array.array("I", [0 for _ in range(160)])
+else:
+    # Create the StateMachine with the ws2812 program, outputting on pin
+    # You can also increase the frequency to improve performance by 1-2ms
+    sm = rp2.StateMachine(0, ws2812, freq=8_000_000, sideset_base=Pin(PIN_NUM))
 
-# Start the StateMachine, it will wait for data on its FIFO.
-sm.active(1)
+    # Start the StateMachine, it will wait for data on its FIFO.
+    sm.active(1)
 
-# Display a pattern on the LEDs via an array of LED RGB values.
-ar = array.array("I", [0 for _ in range(NUM_LEDS)])
+    # Display a pattern on the LEDs via an array of LED RGB values.
+    ar = array.array("I", [0 for _ in range(NUM_LEDS)])
 
 ####################### Functions ##############################
+if ImUsingPins6and5:
+    def pixels_show():
+        while threadLocked:
+            utime.sleep_ms(1)
+        # This 2ms sleep prevents a race condition.
+        utime.sleep_ms(2)
+        ar2 = ar[:len(ar)//2]
+        global ar3
+        ar3 = ar[len(ar)//2:]
+        _thread.start_new_thread(pixels_show_thread2,())
+        dimmer_ar = array.array("I", [0 for _ in range(160)])
+        # TimeCounter3 = utime.ticks_ms()
+        for i,c in enumerate(ar2):
+            r = int(((c >> 8) & 0xFF) * brightness)
+            g = int(((c >> 16) & 0xFF) * brightness)
+            b = int((c & 0xFF) * brightness)
+            dimmer_ar[i] = (g<<16) + (r<<8) + b
+        # print('1 took ' + str(utime.ticks_ms()-TimeCounter3) + ' ms')
+        sm1.put(dimmer_ar, 8)
+        while threadLocked:
+            utime.sleep_ms(1)
 
-def pixels_show():
-    dimmer_ar = array.array("I", [0 for _ in range(NUM_LEDS)])
-    for i,c in enumerate(ar):
-        r = int(((c >> 8) & 0xFF) * brightness)
-        g = int(((c >> 16) & 0xFF) * brightness)
-        b = int((c & 0xFF) * brightness)
-        dimmer_ar[i] = (g<<16) + (r<<8) + b
-    sm.put(dimmer_ar, 8)
+    def pixels_show_thread2():
+        global threadLocked
+        threadLocked = True
+        dimmer_ar = array.array("I", [0 for _ in range(160)])
+        for i,c in enumerate(ar3):
+            r = int(((c >> 8) & 0xFF) * brightness)
+            g = int(((c >> 16) & 0xFF) * brightness)
+            b = int((c & 0xFF) * brightness)
+            dimmer_ar[i] = (g<<16) + (r<<8) + b
+        sm2.put(dimmer_ar, 8)
+        threadLocked = False
+else:
+    def pixels_show():
+        dimmer_ar = array.array("I", [0 for _ in range(NUM_LEDS)])
+        for i,c in enumerate(ar):
+            r = int(((c >> 8) & 0xFF) * brightness)
+            g = int(((c >> 16) & 0xFF) * brightness)
+            b = int((c & 0xFF) * brightness)
+            dimmer_ar[i] = (g<<16) + (r<<8) + b
+        sm.put(dimmer_ar, 8)
 
 def pixels_set(i, colour):
     ar[i] = (colour[1]<<16) + (colour[0]<<8) + colour[2]
