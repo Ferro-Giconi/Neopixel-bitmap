@@ -36,29 +36,45 @@ threadLocked = False
 # Configure the number of WS2812 LEDs.
 PIN_NUM = 6
 brightness = 0.1
-# set total number of LEDs. Each neopixel has 160 LEDs, 10H 16W.
-screen_total_width = screens_w * 16 + (screens_w * gap_w - gap_w)
-screen_total_height = screens_h * 10 + (screens_h * gap_h - gap_h)
-NUM_LEDS = screen_total_width * screen_total_height
 
-#calculates which X and Y cordinates will not be used if there are gaps defined
-global missing_x
-missing_x = []
-for i in range(16,screen_total_width+1,1):
-    ii = i
-    while ii > 16:
-        ii = ii - 16 - gap_w
-    if ii <= 0:
-        missing_x.append(i)
 
-global missing_y
-missing_y = []
-for i in range(10,screen_total_height+1,1):
-    ii = i
-    while ii > 10:
-        ii = ii - 10 - gap_h
-    if ii <= 0:
-        missing_y.append(i)
+if screens_w == 2 and screens_h == 1 and gap_w == 0 and gap_h == 0:
+    # use better optimized code if the layout is 2 screens wide with no gap.
+    # this will let my 2x1 namebadge run a little faster without getting rid of
+    # the code to use any number of neopixels.
+    screen_total_width = 32
+    screen_total_height = 10
+    NUM_LEDS = 320
+elif screens_w == 1 and screens_h == 1 and gap_w == 0 and gap_h == 0:
+    # use better optimized code if the layout is 1 screen.
+    screen_total_width = 16
+    screen_total_height = 10
+    NUM_LEDS = 160
+else:
+    # use slower code for any other configuration
+    # set total number of LEDs. Each neopixel has 160 LEDs, 10H 16W.
+    screen_total_width = screens_w * 16 + (screens_w * gap_w - gap_w)
+    screen_total_height = screens_h * 10 + (screens_h * gap_h - gap_h)
+    NUM_LEDS = screen_total_width * screen_total_height
+
+    #calculates which X and Y cordinates will not be used if there are gaps defined
+    global missing_x
+    missing_x = []
+    for i in range(16,screen_total_width+1,1):
+        ii = i
+        while ii > 16:
+            ii = ii - 16 - gap_w
+        if ii <= 0:
+            missing_x.append(i)
+
+    global missing_y
+    missing_y = []
+    for i in range(10,screen_total_height+1,1):
+        ii = i
+        while ii > 10:
+            ii = ii - 10 - gap_h
+        if ii <= 0:
+            missing_y.append(i)
 
 # Boilerplate Neopixel driver for RP2040
 @rp2.asm_pio(sideset_init=rp2.PIO.OUT_LOW, out_shiftdir=rp2.PIO.SHIFT_LEFT, autopull=True, pull_thresh=24)
@@ -99,57 +115,6 @@ def pixels_show():
 def pixels_set(i, colour):
     ar[i] = (colour[1]<<16) + (colour[0]<<8) + colour[2]
 
-def xy_set(x, y, colour):
-    #check if a pixel is valid and set it if it is
-    if valid_pixel(x,y):
-        xy_set_valid(x, y, colour)
-
-def xy_set_valid(x, y, colour):
-    # +1 to x and y allows me to do pixel math in this function starting at 1 when the input x and y start at 0.
-    # it's just easier for me to figure out the math that way.
-    
-    x = x + 1
-    y = y + 1
-
-    screen_x = 1
-    screen_y = 1
-    xx = x
-    yy = y
-    while xx > 16:
-        screen_x = screen_x + 1
-        xx = xx - 16 - gap_w
-    while yy > 10:
-        screen_y = screen_y + 1
-        yy = yy - 10 - gap_h
-    screen_number = screen_x + ((screen_y - 1) * screens_w)
-    
-    #calculate which pixel to set on which Neopixel
-    pos = ((screen_number - 1) * 160) + (xx - 1) + (yy - 1) * 16
-    pixels_set(pos, colour)
-
-# it seems silly to do this but anything that can save an operation two in the valid pixel check will
-# help improve how many μs each frame takes to display
-global screen_total_width_minus_one
-screen_total_width_minus_one = screen_total_width - 1
-global screen_total_height_minus_one
-screen_total_height_minus_one = screen_total_height - 1
-def valid_pixel(x,y):
-    # check if a pixel is valid
-    valid_pixel = True
-    # Check if the pixel you want to set is outside the size of the
-    # screen to avoid wasting CPU cycles on pixels that you can't see
-    if (x<0) or (y<0) or (x > screen_total_width_minus_one) or (y > screen_total_height_minus_one):
-        valid_pixel = False
-    # If you configured a gap between neopixels, check if the pixel is on a gap
-    if valid_pixel:
-        for i in missing_x:
-            if x == i:
-                valid_pixel = False
-        for i in missing_y:
-            if y == i:
-                valid_pixel = False
-    return valid_pixel
-
 def pixels_fill(colour):
     _thread.start_new_thread(pixels_fill_thread2,((colour),))
     for i in range(math.ceil(len(ar)/2)):
@@ -169,7 +134,89 @@ def pixels_fill_thread2(colour):
 def clear():
     colour = (0,0,0)
     pixels_fill(colour)
-    
+
+def xy_set(x, y, colour):
+    #check if a pixel is valid and set it if it is
+    if valid_pixel(x,y):
+        xy_set_valid(x, y, colour)
+
+if screens_w == 2 and screens_h == 1 and gap_w == 0 and gap_h == 0:
+    # use better optimized code if the layout is 2 screens wide with no gap.
+    # this will let my 2x1 namebadge run a little faster without getting rid of
+    # the code to use any number of neopixels.
+    def xy_set_valid(x, y, colour):
+        # Sets a pixel. This causes errors if you try to set a pixel that doesn't exist.
+        # You should use xy_set() instead if you want to set a single pixel.
+        if x > 15:
+            screen_number = 1
+            x = x - 16
+        else:
+            screen_number = 0
+        #calculate which pixel to set on which Neopixel
+        pos = (screen_number * 160) + x + y * 16
+        pixels_set(pos, colour)
+
+    def valid_pixel(x,y):
+        # check if a pixel is valid
+        if (x<0) or (y<0) or (x > 31) or (y > 9):
+            valid_pixel = False
+        else:
+            valid_pixel = True
+        return valid_pixel
+elif screens_w == 1 and screens_h == 1 and gap_w == 0 and gap_h == 0:
+    # use even better optimized code if using only one neopixel
+    def xy_set_valid(x, y, colour):
+        pos = x + y * 16
+        pixels_set(pos, colour)
+    def valid_pixel(x,y):
+        if (x<0) or (y<0) or (x > 15) or (y > 9):
+            valid_pixel = False
+        else:
+            valid_pixel = True
+        return valid_pixel
+else:
+    # Use less optimized bode, but code that supports any layout you could possibly want.
+    def xy_set_valid(x, y, colour):
+        # +1 to x and y allows me to do pixel math in this function starting at 1 when the input x and y start at 0.
+        # it's just easier for me to figure out the math that way.
+        x = x + 1
+        y = y + 1
+        screen_x = 1
+        screen_y = 1
+        xx = x
+        yy = y
+        while xx > 16:
+            screen_x = screen_x + 1
+            xx = xx - 16 - gap_w
+        while yy > 10:
+            screen_y = screen_y + 1
+            yy = yy - 10 - gap_h
+        screen_number = screen_x + ((screen_y - 1) * screens_w)
+        #calculate which pixel to set on which Neopixel
+        pos = ((screen_number - 1) * 160) + (xx - 1) + (yy - 1) * 16
+        pixels_set(pos, colour)
+    # it seems silly to do this but anything that can save an operation two in the valid pixel check will
+    # help improve how many μs each frame takes to display
+    global screen_total_width_minus_one
+    screen_total_width_minus_one = screen_total_width - 1
+    global screen_total_height_minus_one
+    screen_total_height_minus_one = screen_total_height - 1
+    def valid_pixel(x,y):
+        valid_pixel = True
+        # Check if the pixel you want to set is outside the size of the
+        # screen to avoid wasting CPU cycles on pixels that you can't see
+        if (x<0) or (y<0) or (x > screen_total_width - 1) or (y > screen_total_height - 1):
+            valid_pixel = False
+        # If you configured a gap between neopixels, check if the pixel is on a gap
+        if valid_pixel:
+            for i in missing_x:
+                if x == i:
+                    valid_pixel = False
+            for i in missing_y:
+                if y == i:
+                    valid_pixel = False
+        return valid_pixel
+
 def rect(x,y,w,h,r,g,b):
     # Hollow square at (x,y), w pixels wide coloured (r,g,b)
     _thread.start_new_thread(rect_threads,(x,y,w,h,r,g,b,1))
@@ -213,24 +260,21 @@ def horiz(x,y,l,r,g,b):
 
 def bitmap_set_fast(x,y,w,h,r,g,b):
     # bitmap_set(x_coordinate, y_coordinate, bmp_width, bmp_height, bmp_red, bmp_green, bmp_blue)
-    # set the pixels for a bitmap. Treats 
+    # set the pixels for a bitmap. No gama, brightness, or transparency modifications.
     # start at pixel zero
     PxNum = 0
     for i in range(h):
         for j in range(w):
             if valid_pixel(j+x,i+y):
-                rr = r[PxNum]
-                gg = g[PxNum]
-                bb = b[PxNum]
                 # use the heavily modified xy_set to set each pixel
-                xy_set_valid(j+x,i+y,(rr,gg,bb))
+                xy_set_valid(j+x,i+y,(r[PxNum],g[PxNum],b[PxNum]))
             PxNum = PxNum + 1
 
 def bitmap_set24(x,y,ia,ga=1,br=1,tr=False):
     # bitmap_set(x_coord, y_coord, image_array, gama, brightness, transparency)
     # use for placing a 24 bit bitmap somewhere on screen.
+    
     # start a thread to process the lower half of the pixels
-
     _thread.start_new_thread(bitmap_set24_threads,(x,y,ia,ga,br,tr,1))
     # start a the function to run at the same time as the thread to process the upper half of the pixels
     bitmap_set24_threads(x,y,ia,ga,br,tr,0)
@@ -322,17 +366,6 @@ def bitmap_set1_threads(x,y,ia,r,g,b,tr,threadNum):
     if threadNum:
         threadLocked = False
 
-def adjust_gama_list(color,ga):
-    # this is a crude way to adjust the gama so that images don't display blown out on the screen
-    for i in range(len(color)):
-        color[i] = math.trunc(math.pow(color[i],ga) * 255 / math.pow(255,ga))
-    return(color)
-
-def adjust_gama(color,ga):
-    # this is a crude way to adjust the gama so that images don't display blown out on the screen
-    color = math.trunc(math.pow(color,ga) * 255 / math.pow(255,ga))
-    return(color)
-
 # ======================= BUTTON HANDLING ========================
 button2 = Pin(2, Pin.IN, Pin.PULL_UP)
 button3 = Pin(3, Pin.IN, Pin.PULL_UP)
@@ -366,18 +399,8 @@ button2.irq(trigger=Pin.IRQ_FALLING, handler = button_pressed)
 button3.irq(trigger=Pin.IRQ_FALLING, handler = button_pressed)
 
 
-# ================  Replace everyting before this line  ================
-# ================ with the output from the RGB program ================
 
-# Due to memory constaints and crappy code, loading multiple "large" bitmaps is problematic.
-# For some reason, just loading a bitmap doesn't use much ram, but modifying it uses a lot.
-# Because of this, adjuustments to images should be used sparingly except as needed to improve
-# frame times during render.
-# bmpR[0] = adjust_gama_list(bmpR[0],1.8)
-# bmpG[0] = adjust_gama_list(bmpG[0],1.8)
-# bmpB[0] = adjust_gama_list(bmpB[0],1.8)
-
-
+# ========= Random information ========
 micropython.mem_info()
 TimeCounter = utime.ticks_ms()
 print(utime.ticks_ms()-TimeCounter)
@@ -390,9 +413,18 @@ print(utime.ticks_ms()-TimeCounter)
 import BitmapData
 
 def animation0():
-    # for this example you need one neopixel
-    # set screens_h = 1
-    # set screens_w = 1
+    # blank animation so it doesn't light up super bright when plugged into usb for charging
+    clear()
+    while True:
+        xy_set(1,1,(10,0,10))
+        pixels_show()
+        utime.sleep_ms(200)
+        xy_set(1,1,(0,0,0))
+        pixels_show()
+        utime.sleep_ms(50)
+        if buttonBreak():break
+
+def animation1():
     # Displays the text "load..." which I created thinking there might be a perceptible loading time
     # but there wasn't so it's just one of the example animations.
     for i in range(17,-17,-1):
@@ -402,10 +434,8 @@ def animation0():
         # break the for loop if a buttnon is pressed so animation changes are more responsive
         if buttonBreak():break
 
-def animation1():    
-    # for this example you need one neopixel
-    # set screens_h = 1
-    # set screens_w = 1
+def animation2():    
+    # displays a rainbow gradient using a tiled bitmap
     bg_pos = -12
     for i in range(12):
         # draw the background which is a tiled 12 pixel image
@@ -417,13 +447,9 @@ def animation1():
         pixels_show()
         if buttonBreak():break
 
-def animation2():
+def animation3():
     # fancy scrolling text example with utime.sleep used to make frame times consistent
-    # this uses all the CPU power because of the image size.
-
-    # for this example, you need two neopixels to see it all
-    # set screens_h = 1
-    # set screens_w = 2
+    # "JAYDE THE GOO DEER" in rainbow
     for sadfjhasd in range(1):
         bg_pos = -11
         for i in range(32,-82,-1):
@@ -447,24 +473,13 @@ def animation2():
             pixels_show()
             if buttonBreak():break
 
-def animation3():
-    # for this example, you need two neopixels to see it all
-    # set screens_h = 2
-    # set screens_w = 1
-    
-    for i in range(17,-17,-1):
-        # this example scrolls the bitmap from right to left over a static background
-        # bitmap_set defines which bitmap to use.
-        # normally clear() would be needed, but with a background it isn't needed so it is commented out
-        # clear()
-        bitmap_set24(0,0,BitmapData.bitmap(1),2,.3)
-        # draw the bitmap over the background with black pixels treated as transparent
-        bitmap_set24(i,0,BitmapData.bitmap(0),1.7,.8,True)
-        # draw a few random pixels over the bitmap
-        # the normal xy_set does not check if you are setting a valid pixel. xy_set_valid does. Use it for safety.
-        for i in range(12):
-            xy_set(math.ceil(screen_total_width*random.random()),math.ceil(screen_total_height*random.random()),(200,200,200))
-        # display the result
+def animation4():
+    # asparagus animation
+    for i in range(34,-81,-1):
+        FrameTime = utime.ticks_ms()
+        clear()
+        bitmap_set24(i,0,BitmapData.bitmap(5),3.1,.8)
+        utime.sleep_ms(100 - (utime.ticks_ms() - FrameTime))
         pixels_show()
         if buttonBreak():break
     
@@ -472,7 +487,7 @@ def animation3():
 # ======================= Runs animations on a loop ==================
 
 # set how any animations to loop through with buttons
-number_of_animations = 3
+number_of_animations = 4
 while True:
     if not button_presses_last == button_presses:
         # only clear the screen if the animation is changed, otherwise let the
